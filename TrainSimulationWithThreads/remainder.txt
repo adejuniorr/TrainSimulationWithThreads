@@ -1,0 +1,1 @@
+1 - criar uma cópia da train-img e fazer uma "de ouro" e outra "de diamante"

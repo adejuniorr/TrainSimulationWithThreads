@@ -1,0 +1,121 @@
+Ok
+
+Até agora, a gente modelou nosso código anterior para que cada trem seja uma classe thread diferente e assim instanciamos essas threads passando o painel e o caminho que o painel irá percorrer como Node.
+
+Dentro de cada thread (dentro de cada classe), definimos o painel, o caminho e a movimentação (animação) do trem como atributos e definimos um método que cria a PathTransition, utilizando o painel e caminho dados na construção/instância de um objeto TopTrain/BottomTrain. Essa PathTransition é dada como valor para o atributo de movimentação do trem dentro do construtor da classe.
+
+E definimos o método run() para que ao dar start() na Thread, a PathTrasition dê play(). Isto significa que, no momento do start() da Thread, a PathTransition inicia a animação.
+Ocorre que, pausar a animação não irá parar a Thread!
+
+O acesso à região crítica se torna um pouco confuso pelo fato de não exatamente os trens estarem compartihando o mesmo recurso. Pois cada trem tem um caminho exclusivo diferente. Seria conveniente criar um novo caminho único e dessa forma termos um caminho compartilhado pelos dois? Ou então deveriamos apenas considerar os dois caminhos como um "recurso compartilhado teoricamente"?
+
+Tecnicamente, o recurso compartilhado diz respeito à posição dos trens na tela e não ao trecho do caminho sobre o qual percorrem.
+Então se pudermos identificar a posição de um trem sobre um trecho do caminho (que seria o trecho da região crítica), como esse trecho tem a mesma posição que o outro caminho, então os métodos de implementação do tratamento sobre a região crítica poderiam utilizar dessas posições de cada trem sobre os diferentes trechos dos caminhos que percorrem (inclusive, os trechos "comuns").
+
+Então, o que podemos fazer é criar um meio de identificar a posição X do Node sobre o seu respectivo caminho. Ou então a posição Y, pois quando os Y de cada trem são iguais (ou pelo menos muito próximos - pois pode harver uma pequena diferença de pixels), significa que estão sobre a mesma região horizontal.
+
+Então ao invés de contabilizar os valores de posição X de um ponto (x1, y) a outro (x2, y), comparemos os "y" quando iguais.
+
+Mas temos outro problema. Como "parar" a Thread? Ou não a paramos? Apenas damos pause() na animação? Usemos isso por enquanto.
+
+172 + x = 246 - x
+2x = 74
+x = 37
+
+Beleza, depois de testar algumas implementações com o auxílio da IA do ChatGPT, cheguei à conclusão de estudar a documentação da classe LineTo que está sendo usada para adquirir as coordenadas X e Y.
+
+O ponto é que a LineTo apenas sede as coordenadas finais da linha. Quando criamos o caminho em nosso método createPath, primeiro criamos um MoveTo que define o ponto inicial do caminho e adicionamos à lista de elementos (da classe PathElements). Só então entramos no laço for e passamos apenas a adicionar LineTo's a essa lista. Esses LineTo's consideram apenas o ponto de partida em questão (a princípio o MoveTo (0,0) inserido) e fazem uma linha até o novo ponto (x,y) calculado a cada iteração.
+
+Lendo a documentação, só é possível identificar o ponto final da linha.
+
+Então o que podemos fazer é identificar a linha cujo ponto final leva até o início da curva para a região crítica. Este ponto estaria na primeira iteração do laço for dentro do createPath()
+
+Opa! Identificamos algo que possa nos ajudar. O método getCurrentTime() da classe Animation (estendida pela PathTransition) fornece o tempo de execução da animação e nos permite ver sobre qual posição o nó esta em um instante de tempo. 
+
+Pausando exatamente antes do trem1 entrar na primeira região crítica, o tempo marcado é de aproximadamente 55.6 milissegundos. E antes de entrar na segunda região crítica, o tempo marcado é de 225.5 milissegundos.
+
+Acredito que posso considerar esse tempo igualmente para o trem2, já que a formação da PathTransition é idêntica.
+
+Perfeito. Agora como podemos utilizar isso ao nosso favor?
+Lembrando que a ideia é alterar a variável de transição no exato instante em que o trem entra na região crítica, então vamos adicionar um listener à currentTimeProperty() (que vai analisar os eventos que acontecem em tempo de execução) e lá, quando a animação estiver no tempo 55.6, alteramos a variável de travamento.
+
+Ok, funcionou!
+Até certa parte.
+Chegamos os intervalos de tempo nos quais o trem estaria sobre a região crítica definidos como:
+
+1ª região: de 54 a 168 milissegundos
+2ª região: de 222 a 338 milissegundos
+
+O problema agora é que ambos os trens estão travando. Isto ocorre porque quando um deles alcança o menor valor possível do intervalo de tempo correspondente à região crítica, ele muda o valor do lock. Assim o outro trem, que executa logo em seguida ao primeiro concorrentemente, não entrará. No entanto, o listener que atua em tempo de execução, irá "iterar" novamente quando o controle for devolvido ao "trem inicial". E a checagem do lock, é feita em tempo de execução, logo, dentro do listener. Dessa forma, ao entrar no listener, o loop while pausa a animação do trem inicial juntamente com a animação do outro trem. E ninguém se move. E dessa forma ninguém sai do intervalo da região crítica e o lock nunca volta a ser zero.
+
+Como resolver???
+
+Se eu remover o while para fora do listener, ele só vai fazer a chegagem uma única vez? Sim.
+
+Se eu envolver tudo num while(true)... vai travar o programa todo e nada acontece.
+
+Se eu trocar o while dentro do listener por um if-else, acontece o mesmo: ambos param antes de entrar na região crítica.
+
+Novamente porque o primeiro trem a chegar no intervalo de tempo transforma lock em 1 e no instante seguinte checa se lock != 0 e assim para. O trem seguinte para também pois lock != 0.
+
+Ok, Cauê nos ajudou a achar um método de identificar a posição de cada trem na tela. Agora, como usar isso para travar os trens adequadamente?
+Cheguei a tentar implementar semelhante a como estava fazendo com o tempo em ms, porém, o resultado foi o mesmo (quem diria...)
+
+Talvez achar um meio de implementar isso fora do listener seja uma solução. Já que o listener identifica as condições a cada "iteração" da animação em execução. Por isso ambos os trens estão parando ou passando.
+
+Então se não iremos usar um listener, o que podemos colocar no lugar? ... ...
+
+Vamos relemebrar que a ideia é identificar uma posição Y que corresponda ao início da curva. O primeiro trem a chegar nela, ou melhor, no ponto logo após ela, irá transformar lock=1 até que ele tenha passado o ponto seguinte ao do fim da curva.
+
+
+No ponto após a curva...
+E se ao invés de pausar os trens, eu fazer com que a posição Y deles permaneça naquele valor travado até o outro ter passado?
+A princípio parece ser a mesma coisa. Mas o que estou pensando é criar um loop while para lock != 0 que faça o trem avançar 1 e voltar 1. Mas talvez o mais adequado seja pausar o trem mesmo. O problema não é meio como eu paro os trens, mas na vdd permitir que apenas 1 passe enquanto o outro está pausado.
+Então while lock != 0 pausar os trens ainda é válido. É o adequado. Mas agora como identificar corretamente esse lock? Se além de verificar que lock != 0 eu verificar a posição do trem em questão...
+
+Eu tentei fazer isso só que durante a aula, então estava um pouco confuso. Talvez tenha me perdido.
+
+Vejamos:
+
+O trem1 faz a curva no ponto Y1 e seta o lock para 1
+O trem2 chega no ponto Y2 = Y1 +/- algumaCoisa e só passa se, além de estar de fato nesse ponto, o lock == 0
+
+Então primeiro identifiquemos os pontos Y1 e Y2 e vejamos quem é Y1 em relação a Y2 e vice-versa
+
+Lembrando que temos duas regiões críticas, então teremos mais de uma checagem. Quatro no total: 2 para entrada/saída da RC1 e 2 para entrada/saída da RC2
+
+Aqui (aproximadamente):
+
+Entrada RC1:
+Y1 = 192
+Y2 = 250
+----------------
+Y1 = Y2 - 58 e
+Y2 = Y1 + 58
+
+Saída RC1:
+Y1 = 244
+Y2 = 198
+----------------
+Y1 = Y2 + 46
+Y2 = Y1 - 46
+
+Testemos as configurações desta teoria antes de configurar a RC2.
+
+Mas antes de testar isso, vamo considerar de novo qual seria outro meio de trabalhar testando essas coisas sem utilizar um listener. Porque utilizar um listener sempre vai travar... Ou será que existe algum listener adequado pro nosso caso?
+
+Ok... o que fazer agora...
+
+Temos como identificar as posições X ou Y de cada trem.
+
+Relembrando, a ideia é que um primeiro trem passe por uma coordenada Y1, siga andando e trave lock=1
+Com um listener, ao passar por Y1 e travar lock=1, o trem fica parado ali tbm devido à iteração do listener na medida em que a animação executa. Então, o que fazer? ...
+
+Continuar usando o listener? Ou tentar desenvolver um loop while?
+
+Com um loop while eu poderia verificar o seguinte:
+
+Enquanto o trem estiver entre as coordenadas de início e fim da região crítica, o loop segue lendo as novas coordenadas até o trem sair. Enquanto o trem estiver lá dentro, lock deve ser 1. No entanto, lock 1 não deve afetar o trem que chegou a Y primeiro.
+
+
+Como após esse tratamento de RC eu vou precisar ainda implementar mais 2, faz sentido tratar todos como funções a serem chamadas em cada thread separadamente. 
