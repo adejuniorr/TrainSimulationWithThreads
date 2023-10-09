@@ -1,0 +1,16 @@
+{
+    "java.project.referencedLibraries": [
+        "lib/**/*.jar",
+        "libs/fontawesomefx-commons-9.1.2.jar",
+        "libs/fontawesomefx-fontawesome-4.7.0-9.1.2.jar",
+        "libs/gson-2.10.1.jar",
+        "libs/javafx.base.jar",
+        "libs/javafx.controls.jar",
+        "libs/javafx.fxml.jar",
+        "libs/javafx.graphics.jar",
+        "libs/javafx.media.jar",
+        "libs/javafx.swing.jar",
+        "libs/javafx.web.jar",
+        "libs/javafx-swt.jar"
+    ]
+}
