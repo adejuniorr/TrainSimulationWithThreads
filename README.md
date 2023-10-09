@@ -1,4 +1,4 @@
-# TrainSimulationWithThreads
+# RailwaySimulationWithThreads
 A simulation of trains on a railway
 
 This project was made for a college task. The main objective is to simulate trains on a railway by using object-oriented programming in Java. 
